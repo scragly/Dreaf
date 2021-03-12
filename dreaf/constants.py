@@ -7,11 +7,11 @@ from dreaf import db
 _log = logging.getLogger(__name__)
 
 GUILD_ID: int = 732785236273922069
-PREFIX = "!"
-TOKEN = ""
+PREFIX = '!'
+TOKEN = ''
 EMOJI_DELETE = 685111560930197534
-EMOJI_PROMPT_TICK = "\u2705"
-EMOJI_PROMPT_CROSS = "\u274e"
+EMOJI_PROMPT_TICK = '\u2705'
+EMOJI_PROMPT_CROSS = '\u274e'
 EXEMPLAR_ROLE = 732795761762238514
 DEPUTY_ROLE = 732786956106334238
 MASTER_ROLE = 732789199354200134
@@ -21,6 +21,9 @@ AFK_FEED_CHANNEL = 815603266652995605
 AFK_CODE_FEED_CHANNEL = 814452504247009310
 BOT_SPAM_CHANNEL = 809789367153328188
 CODE_CHANNEL = 817608299842371654
+DATABASE_NAME = 'dreaf'
+DATABASE_USER = 'dreaf'
+DATABASE_PASSWORD = ''
 
 
 class PersistentGlobals(db.Table):
@@ -94,6 +97,8 @@ persistent_globals = PersistentGlobals()
 
 def load_envs():
     dreaf_envvars = {k.split("DREAF_", 1)[1]: v for k, v in os.environ.items() if k.startswith("DREAF_")}
+    global DATABASE_PASSWORD
+    DATABASE_PASSWORD = os.environ.get("POSTGRES_PASSWORD", '')
     for setting, value in dreaf_envvars.items():
         module = sys.modules[__name__]
         setting_type = type(getattr(module, setting))
