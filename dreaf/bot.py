@@ -1,15 +1,17 @@
+import logging
 import typing as t
 
 import discord
 from discord.ext import commands
-from . import db, constants
-import logging
+
+from dreaf import constants, ctx, db
 
 log = logging.getLogger(__name__)
 
 
 class DreafBot(commands.Bot):
     def __init__(self):
+        self.ctx = ctx.set_client(self)
         intents = discord.Intents.all()
         intents.presences = False
         super().__init__("", intents=intents, case_insensitive=True)
@@ -109,3 +111,7 @@ class DreafBot(commands.Bot):
             return
 
         await log_channel.send(f"`{member} ({member.id})` **left** the server.")
+
+    def dispatch(self, event_name, *args, **kwargs):
+        ctx.event_hook(event_name, *args, **kwargs)
+        super().dispatch(event_name, *args, **kwargs)

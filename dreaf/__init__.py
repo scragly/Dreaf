@@ -5,6 +5,10 @@ from logging import handlers
 import pendulum
 import logging
 
+from dreaf.context import ctx
+
+__all__ = ('ctx',)
+
 pendulum.set_local_timezone()
 
 debug_flag = True

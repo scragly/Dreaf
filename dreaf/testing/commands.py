@@ -9,7 +9,7 @@ from contextlib import redirect_stdout, suppress
 import discord
 from discord.ext import commands
 
-from dreaf import checks
+from dreaf import checks, ctx as dctx
 
 if t.TYPE_CHECKING:
     from dreaf.bot import DreafBot
@@ -38,6 +38,7 @@ class TestCommands(commands.Cog, name="Gift Codes"):
         """Evaluates provided python code"""
 
         env = {
+            'dctx': dctx,
             'bot': self.bot,
             'ctx': ctx,
             'channel': ctx.channel,
