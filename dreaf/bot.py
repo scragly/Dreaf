@@ -3,19 +3,19 @@ import typing as t
 
 import discord
 from discord.ext import commands
+from discord.ext import context
 
-from dreaf import constants, ctx, db
+from dreaf import constants, ctx
 
 log = logging.getLogger(__name__)
 
 
-class DreafBot(commands.Bot):
+class DreafBot(context.ContextClient, commands.Bot):
     def __init__(self):
         self.ctx = ctx.set_client(self)
         intents = discord.Intents.all()
         intents.presences = False
         super().__init__("", intents=intents, case_insensitive=True)
-        self.db = db.conn
         self._global_reaction_triggers: t.Dict[str, t.Callable] = {
             constants.EMOJI_DELETE: self._delete_trigger,
         }
