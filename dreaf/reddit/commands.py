@@ -112,5 +112,11 @@ class RedditCommands(commands.Cog, name="Reddit"):
 
     @staticmethod
     def task_error(task: asyncio.Task):
-        if task.exception():
+        try:
+            exc = task.exception()
+        except asyncio.CancelledError:
+            log.info(f"Task '{task.get_coro().__name__}' was cancelled.")
+            return
+
+        if exc:
             task.result()
