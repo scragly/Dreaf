@@ -105,7 +105,7 @@ class RedeemSession:
             try:
                 await member.send(
                     "A verification mail has been sent to you in-game. "
-                    "Please reply here with the verification code within 1 minute."
+                    "Please reply here with the verification code within 10 minutes."
                 )
                 log.info("Verification DM is sent.")
             except discord.HTTPException:
@@ -128,7 +128,7 @@ class RedeemSession:
             log.info(f"Received response of {message.content}")
         except asyncio.TimeoutError:
             await member.send("Verification timed out. Please try again.")
-            await channel.send("Verification timed out. Please try again.")
+            log.info(f"Verification timed out for {member}")
             self._active.remove(member.id)
             return
 
