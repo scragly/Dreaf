@@ -9,7 +9,8 @@ better-exceptions = "*"
 [packages]
 "discord.py" = "~=1.6.0"
 pendulum = "~=2.1.2"
-gino = "~=1.0.1"
+"discord.ext.context" = "*"
+everstone = "*"
 
 [requires]
 python_version = "3.9"
