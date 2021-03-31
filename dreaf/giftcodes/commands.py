@@ -83,6 +83,7 @@ class GiftCodeCommands(commands.Cog, name="Gift Codes"):
             await self.create_code_message(channel, embed)
         else:
             await message.edit(embed=embed)
+            await message.add_reaction(self._gift_emoji)
 
     async def create_code_message(self, channel, embed):
         log.info("Creating new message.")
