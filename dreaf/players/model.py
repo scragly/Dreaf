@@ -12,9 +12,11 @@ log = logging.getLogger(__name__)
 
 
 class Player(db.Table):
-    def __init__(self, game_id: int, discord_id: int, main: bool = None, name: str = None):
+    def __init__(self, game_id: int, discord_id: int, main: bool = None, name: str = None, server_id: int = None, level: int = None):
         self.game_id = game_id
         self.discord_id = discord_id
+        self.server = server_id
+        self.level = level
 
         if main is not None:
             self.main = main
@@ -45,26 +47,26 @@ class Player(db.Table):
     def get(cls, game_id: int) -> t.Optional[Player]:
         results = cls._select(game_id)
         if results:
-            game_id, discord_id, main, name = results
-            return cls(game_id, discord_id, main, name)
+            game_id, discord_id, main, name, server_id, level = results
+            return cls(game_id, discord_id, main, name, server_id, level)
         return None
 
     @classmethod
     def get_by_discord_id(cls, discord_id) -> t.List[Player]:
         results = cls._select_all(discord_id=discord_id)
-        players = [cls(gid, did, main, name) for (gid, did, main, name) in results]
+        players = [cls(gid, did, main, name, server_id, level) for (gid, did, main, name, server_id, level) in results]
         return players
 
     @classmethod
     def get_main(cls, discord_id: int):
         try:
-            game_id, discord_id, main, name = cls._select_main(discord_id)
+            game_id, discord_id, main, name, server_id, level = cls._select_main(discord_id)
         except TypeError:
             return None
-        return cls(game_id, discord_id, main, name)
+        return cls(game_id, discord_id, main, name, server_id, level)
 
     def save(self):
-        self._insert(self.game_id, self.discord_id, self.main)
+        self._insert(self.game_id, self.discord_id, self.main, self.server, self.level)
         if self.name:
             self.set_name(self.name)
 
@@ -78,7 +80,12 @@ class Player(db.Table):
 
     @staticmethod
     def _select(game_id=None):
-        cursor = db.conn.execute("SELECT game_id, discord_id, main, name FROM players WHERE game_id = ?", [game_id])
+        cursor = db.conn.execute(
+            """
+            SELECT game_id, discord_id, main, name, server_id, level FROM players WHERE game_id = ?
+            """,
+            [game_id]
+        )
         data = cursor.fetchone()
         cursor.close()
         return data
@@ -87,7 +94,7 @@ class Player(db.Table):
     def _select_main(discord_id: int):
         cursor = db.conn.execute(
             """
-            SELECT game_id, discord_id, main, name
+            SELECT game_id, discord_id, main, name, server_id, level
             FROM players
             WHERE discord_id = ? AND main = TRUE;
             """,
@@ -99,7 +106,7 @@ class Player(db.Table):
 
     @staticmethod
     def _select_all(game_id=None, discord_id=None):
-        select = "SELECT game_id, discord_id, main, name FROM players WHERE "
+        select = "SELECT game_id, discord_id, main, name, server_id, level FROM players WHERE "
         where = []
         query_items = []
         if game_id:
@@ -119,16 +126,19 @@ class Player(db.Table):
         return data
 
     @staticmethod
-    def _insert(game_id: int, discord_id: int, main=False):
+    def _insert(game_id: int, discord_id: int, main=False, server: int = None, level: int = None):
+        print(f"uid={game_id}, disc={discord_id}, main={main}, server={server}, level={level}")
         cursor = db.conn.execute(
             """
-            INSERT INTO players(game_id, discord_id, main) VALUES (?, ?, ?)
+            INSERT INTO players(game_id, discord_id, main, server_id, level) VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(game_id)
             DO UPDATE SET
               discord_id=excluded.discord_id,
-              main=excluded.main;
+              main=excluded.main,
+              server_id=excluded.server_id,
+              level=excluded.level;
             """,
-            [game_id, discord_id, main]
+            [game_id, discord_id, main, server, level]
         )
         db.conn.commit()
         cursor.close()
@@ -162,7 +172,9 @@ class Player(db.Table):
               game_id INT PRIMARY KEY,
               discord_id INT NULL,
               main BOOLEAN default TRUE,
-              name TEXT NULL
+              name TEXT NULL,
+              server_id INT default NULL,
+              level INT default NULL
             );
             """
         )
