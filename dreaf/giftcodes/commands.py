@@ -244,8 +244,38 @@ class GiftCodeCommands(commands.Cog, name="Gift Codes"):
 
         players = Player.get_by_discord_id(ctx.author.id)
         if not players:
-            await ctx.send("You haven't registered an ID. You can add one with `!id set <game_id>`.")
-            return
+            log.info(f"Requesting Game ID from {ctx.author}")
+
+            def check(m: discord.Message):
+                if not isinstance(m.channel, discord.DMChannel):
+                    return False
+                if m.channel.recipient != m.author:
+                    return False
+                if m.author != ctx.author:
+                    return False
+                return True
+
+            try:
+                message = await ctx.bot.wait_for('message', check=check, timeout=600)
+                log.info(f"Received response of {message.content}")
+            except asyncio.TimeoutError:
+                await ctx.author.send("Prompt has timed out. Please try setting an id instead with `!id set <game_id>`.")
+                log.info(f"Game ID prompt has timed out for {ctx.author}")
+                return
+
+            try:
+                game_id = int(message.content)
+            except ValueError:
+                await ctx.author.send(
+                    "The response you gave doesn't appear to be correct. "
+                    "Please try setting an id instead with `!id set <game_id>`."
+                )
+                log.info(f"Game ID prompt for {ctx.author} failed.")
+                return
+
+            player = Player(game_id, ctx.author.id)
+            player.save()
+            players = [player]
 
         if len(players) > 1:
             player = Player.get_main(ctx.author.id)
