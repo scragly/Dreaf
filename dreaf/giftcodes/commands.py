@@ -108,6 +108,24 @@ class GiftCodeCommands(commands.Cog, name="Gift Codes"):
             embed.set_footer(text="Expiry Unknown")
         await ctx.send(embed=embed)
 
+    @code.group(name="expires", aliases=["expiry", "expire"])
+    async def code_expiry(self, ctx, code: GiftCode, *, expiry: pendulum.parse):
+        """Set the expiry for an existing code."""
+        code.set_expiry(expiry)
+
+        rewards = code.rewards_formatted(self.bot)
+        embed = discord.Embed(
+            description=rewards,
+            title=code.code,
+            timestamp=code.expiry if code.expiry else discord.Embed.Empty,
+            colour=discord.Colour.red() if code.is_expired() else discord.Colour.green()
+        )
+        if code.expiry:
+            embed.set_footer(text="Gift Code Expiry")
+        else:
+            embed.set_footer(text="Expiry Unknown")
+        await ctx.send(embed=embed)
+
     @code.group(name="add", aliases=["new", "edit"], invoke_without_command=True)
     async def code_add(self, ctx, code: str, *, expiry: t.Optional[pendulum.parse]):
         """Add a new code."""
