@@ -17,6 +17,14 @@ if t.TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+class ProxyMember:
+    def __init__(self, user: discord.User):
+        self.id = user.id
+        self.name = user.name
+        self.display_name = user.name
+        self.avatar_url = user.avatar_url
+
+
 class PlayerCommands(commands.Cog, name="Player Info"):
     """Commands relating to player info."""
 
@@ -40,44 +48,85 @@ class PlayerCommands(commands.Cog, name="Player Info"):
         await ctx.send(f"{member.display_name} is a Member")
 
     @commands.group(invoke_without_command=True)
-    async def player(self, ctx, game_id: int):
+    async def player(self, ctx, player_id: t.Union[discord.Member, int] = None):
         """Show information on a Player."""
-        player = Player.get(game_id)
-        if not player:
-            await ctx.send(f"Player with ID {game_id} not found.")
+        if isinstance(player_id, discord.Member):
+            players = Player.get_by_discord_id(player_id.id)
+        elif not player_id:
+            players = Player.get_by_discord_id(ctx.author.id)
+        else:
+            player = Player.get(player_id)
+            players = [player] if player else []
+
+        if not players:
+            await ctx.send(f"No players found.")
             return
 
-        member = self.bot.guild.get_member(player.discord_id) if player.discord_id else None
-        name = player.name or "No name set."
-        embed = discord.Embed(
-            title=game_id,
-            description=f"Name: {name}\nRegistered to: {member.display_name}\nMain: {bool(player.main)}"
-        )
+        if not isinstance(player_id, discord.Member):
+            player = players[0]
+            if ctx.guild:
+                member = ctx.guild.get_member(player.discord_id)
+            else:
+                user = ctx.bot.get_user(player.discord_id)
+                member = ProxyMember(user) if user else None
+            if not member:
+                await ctx.send("I can't see that player!")
+
+        else:
+            member = player_id
+
+        embed = discord.Embed()
+        embed.set_author(name=member.display_name, icon_url=member.avatar_url)
+        multi = len(players) > 1
+        for player in players:
+            if player.main and multi:
+                name = f"**__{player.name}__**"
+                embed.set_footer(text="Main account is underlined.")
+            else:
+                name = player.name
+
+            player_id = f"**ID:** {player.game_id}\n"
+            level = f"**Level:** {player.level or 'Unknown'}\n"
+            server = f"**Server:** {player.server or 'Unknown'}\n"
+            embed.add_field(name=name, value=f"{player_id}{level}{server}", inline=False)
         await ctx.send(embed=embed)
 
-    @player.command(name="main")
-    async def player_main(self, ctx, game_id: int):
-        """Set specific Player as your main account."""
-        player = Player.get(game_id)
-        if not player:
-            await ctx.send(f"Player with ID {game_id} not found.")
+    @commands.command(aliases=["verify", "update"])
+    async def link(self, ctx, ingame_id: t.Optional[int] = None):
+        """Link or update your in-game accounts to your discord account."""
+        if not ingame_id:
+            player = Player.get_main(ctx.author.id)
+            if not player:
+                await ctx.send(
+                    f"You don't have a main account linked yet."
+                    f"Please try again with your in-game ID: `!{ctx.invoked_with} <your_game_id>`."
+                )
+                return
+            ingame_id = player.game_id
+
+        session = redeem_session.RedeemSession.get(ingame_id)
+        if session.in_active_session(ctx.author.id):
+            await ctx.send("You are already in the middle of verifying.")
             return
 
-        player.main = True
-        player.save()
-        await ctx.send(f"Player '{player.name or player.game_id}' is now set to main.")
+        try:
+            players = await session.get_users()
+        except redeem_session.SessionExpired:
+            await session.send_mail()
+            try:
+                await session.request_verification_code(ctx.bot, ctx.channel, ctx.author)
+            except discord.Forbidden:
+                await ctx.send(
+                    "I need to verify your account, but I'm unable to send a DM. "
+                    "Please adjust your privacy settings and try again."
+                )
+                return
+            players = await session.get_users()
 
-    @checks.is_exemplar()
-    @player.command(name="name")
-    async def player_name(self, ctx, game_id: int, *, in_game_name: str):
-        """Set the in-game name for a specific Player."""
-        player = Player.get(game_id)
-        if not player:
-            await ctx.send(f"Player with ID {game_id} not found.")
-            return
-
-        player.set_name(in_game_name)
-        await ctx.send(f"Player name is now set to '{in_game_name}'.")
+        names = ", ".join(p.name for p in players)
+        count = len(players)
+        s = "s" if count > 1 else ""
+        await ctx.send(f"{len(players)} player{s} found and updated:\n{names}")
 
     @commands.group(name="id", invoke_without_command=True)
     async def game_id(self, ctx, member: discord.Member = None):
@@ -179,4 +228,4 @@ class PlayerCommands(commands.Cog, name="Player Info"):
         await ctx.send(f"The following Player IDs are still verified:\n{verified}")
 
     async def cog_command_error(self, ctx, error):
-        await ctx.send(f"Error: {error.original}")
+        await ctx.send(f"Error: {error}")
