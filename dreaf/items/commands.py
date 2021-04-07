@@ -74,4 +74,4 @@ class ItemCommands(commands.Cog, name="Item Info"):
         if isinstance(error, commands.BadArgument):
             await ctx.send("Argument not found.")
         else:
-            await ctx.send(f"Error: {error.original}")
+            await ctx.send(f"Error: {error}")

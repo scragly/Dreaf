@@ -58,4 +58,4 @@ class EventCommands(commands.Cog, name="Events"):
                 await channel.send(payload.member.mention, embed=embed)
 
     async def cog_command_error(self, ctx, error):
-        await ctx.send(f"Error: {error.original}")
+        await ctx.send(f"Error: {error}")

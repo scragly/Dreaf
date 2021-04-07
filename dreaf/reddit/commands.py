@@ -108,7 +108,7 @@ class RedditCommands(commands.Cog, name="Reddit"):
         await ctx.send("AFK feed task has been reset.")
 
     async def cog_command_error(self, ctx, error):
-        await ctx.send(f"Error: {error.original}")
+        await ctx.send(f"Error: {error}")
 
     @staticmethod
     def task_error(task: asyncio.Task):

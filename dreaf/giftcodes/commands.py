@@ -277,7 +277,7 @@ class GiftCodeCommands(commands.Cog, name="Gift Codes"):
         await self.redeem.invoke(ctx)
 
     async def cog_command_error(self, ctx, error):
-        await ctx.send(f"Error: {error.original}")
+        await ctx.send(f"Error: {error}")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
