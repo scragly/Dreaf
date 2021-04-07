@@ -2,7 +2,9 @@ import logging
 import os
 import sys
 
-from dreaf import db
+from everstone import db
+
+from dreaf import db as sqlite_db
 
 _log = logging.getLogger(__name__)
 
@@ -21,12 +23,14 @@ AFK_FEED_CHANNEL = 815603266652995605
 AFK_CODE_FEED_CHANNEL = 814452504247009310
 BOT_SPAM_CHANNEL = 809789367153328188
 CODE_CHANNEL = 817608299842371654
-DATABASE_NAME = 'dreaf'
-DATABASE_USER = 'dreaf'
-DATABASE_PASSWORD = ''
+DB_NAME = 'dreaf'
+DB_USER = 'dreaf'
+DB_PASSWORD = ''
+DB_HOST = 'localhost'
+DB_PORT = '5432'
 
 
-class PersistentGlobals(db.Table):
+class PersistentGlobals(sqlite_db.Table):
 
     def __init__(self):
         self._cache = dict()
@@ -52,7 +56,7 @@ class PersistentGlobals(db.Table):
         if key in self._cache:
             return tuple([self._cache[key]])
 
-        cursor = db.conn.execute(
+        cursor = sqlite_db.conn.execute(
             """
             SELECT value
             FROM persistent_globals
@@ -65,7 +69,7 @@ class PersistentGlobals(db.Table):
         return data
 
     def _insert(self, key, value):
-        cursor = db.conn.execute(
+        cursor = sqlite_db.conn.execute(
             """
             INSERT INTO persistent_globals(key, value) VALUES (?, ?)
             ON CONFLICT(key)
@@ -74,14 +78,14 @@ class PersistentGlobals(db.Table):
             """,
             [key, value]
         )
-        db.conn.commit()
+        sqlite_db.conn.commit()
         cursor.close()
         self._cache[key] = value
 
     @staticmethod
     def _create_table():
         _log.info("Ensuring table exists: persistent_globals")
-        cursor = db.conn.execute(
+        cursor = sqlite_db.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS persistent_globals (
               key TEXT PRIMARY KEY,
@@ -97,8 +101,8 @@ persistent_globals = PersistentGlobals()
 
 def load_envs():
     dreaf_envvars = {k.split("DREAF_", 1)[1]: v for k, v in os.environ.items() if k.startswith("DREAF_")}
-    global DATABASE_PASSWORD
-    DATABASE_PASSWORD = os.environ.get("POSTGRES_PASSWORD", '')
+    global DB_PASSWORD
+    DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", '')
     for setting, value in dreaf_envvars.items():
         module = sys.modules[__name__]
         setting_type = type(getattr(module, setting))
@@ -106,3 +110,5 @@ def load_envs():
 
 
 load_envs()
+
+# db.connect(DB_NAME, DB_USER, DB_PASSWORD, host=DB_HOST, port=DB_PORT)
