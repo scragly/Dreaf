@@ -13,6 +13,7 @@ from aiohttp import ContentTypeError
 import discord
 
 from dreaf.giftcodes import GiftCode
+from dreaf.players import Player
 
 if t.TYPE_CHECKING:
     from dreaf.bot import DreafBot
@@ -156,14 +157,14 @@ class RedeemSession:
             self.save()
             return data
 
-    async def _redeem_code(self, code: GiftCode):
+    async def _redeem_code(self, code: GiftCode, specific_id=None):
         if code.is_redeemed(self.game_id):
             raise CodeUsed
 
         payload = {
             "type": "cdkey_web",
             "game": "afk",
-            "uid": self.game_id,
+            "uid": specific_id or self.game_id,
             "cdkey": code.code
         }
         async with self.http_session.post("https://cdkey.lilith.com/api/cd-key/consume", json=payload) as resp:
@@ -177,6 +178,23 @@ class RedeemSession:
             elif data["info"] == "err_login_state_out_of_date":
                 raise SessionExpired
 
+    async def get_users(self):
+        payload = {
+            "game": "afk",
+            "uid": self.game_id,
+        }
+        async with self.http_session.post("https://cdkey.lilith.com/api/users", json=payload) as resp:
+            data = await resp.json()
+            if data["info"] == "err_login_state_out_of_date":
+                raise SessionExpired
+        current = Player.get(self.game_id)
+        players = []
+        for user in data["data"]["users"]:
+            player = Player(user["uid"], current.discord_id, user["is_main"], user["name"], user["svr_id"], user["level"])
+            player.save()
+            players.append(player)
+        return players
+
     async def is_verified(self):
         try:
             with suppress(InvalidCode):
@@ -189,7 +207,13 @@ class RedeemSession:
         if not await self.is_verified():
             raise SessionExpired
 
-        tasks = {asyncio.create_task(self._redeem_code(c)): c for c in codes}
+        players = await self.get_users()
+
+        tasks = dict()
+        for player in players:
+            for code in codes:
+                tasks[asyncio.create_task(self._redeem_code(code, specific_id=player.game_id))] = code
+
         await asyncio.gather(*tasks, return_exceptions=True)
         results = dict(success=[], used=[], expired=[], invalid=[])
         for task, code in tasks.items():
