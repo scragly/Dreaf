@@ -171,12 +171,16 @@ class GiftCodeCommands(commands.Cog, name="Gift Codes"):
         code.add_reward(item, qty)
         emoji = f"{self.bot.get_emoji(item.emoji_id)} " if item.emoji_id else ''
         await ctx.send(f"Added {qty} x {emoji}{item.name.title()} to gift code '{code}'")
+        task = asyncio.create_task(self.update_code_message())
+        task.add_done_callback(self.task_error)
 
     @code_reward.command(name="remove", aliases=["delete"])
     async def code_reward_remove(self, ctx, code: GiftCode, item: Item):
         """Remove a reward from a code."""
         code.remove_reward(item)
         await ctx.send(f"Removed {item.name.title()} from gift code '{code}'")
+        task = asyncio.create_task(self.update_code_message())
+        task.add_done_callback(self.task_error)
 
     def code_list_embed(
         self,
