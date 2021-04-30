@@ -8,13 +8,20 @@ import discord
 from discord.ext import commands
 
 from .lab_path import LabPathPost
-from .afkarena import AFKArenaPost
+from .afkarena import AFKArenaPost, SESSION
+from .request import Post
 from dreaf import constants, checks
 
 if t.TYPE_CHECKING:
     from dreaf.bot import DreafBot
 
 log = logging.getLogger(__name__)
+
+
+def url_str(arg: str):
+    if arg.startswith("<") and arg.endswith(">"):
+        return arg[1:-1]
+    return arg
 
 
 class RedditCommands(commands.Cog, name="Reddit"):
@@ -60,6 +67,10 @@ class RedditCommands(commands.Cog, name="Reddit"):
     def afk_feed_channel(self):
         return self.bot.get_channel(constants.AFK_FEED_CHANNEL)
 
+    @property
+    def map_guide_channel(self):
+        return self.bot.get_channel(constants.MAP_GUIDE_CHANNEL)
+
     def setup_afk_feed_task(self):
         if self.afk_feed_task:
             self.afk_feed_task.cancel()
@@ -82,8 +93,29 @@ class RedditCommands(commands.Cog, name="Reddit"):
                     continue
                 log.info(f"New AFK feed post: {post.permalink}")
                 await post.send(self.afk_feed_channel, mark_posted=True)
+                if post.is_map_guide:
+                    log.info(f"New Map Guide: {post.permalink}")
+                    await post.send(self.map_guide_channel)
             log.info("AFK feed task sleeping for 15 mins.")
             await asyncio.sleep(60*15)
+
+    @commands.group(invoke_without_command=True)
+    async def post(self, ctx, url: url_str):
+        """Get a specific reddit post."""
+        post = await Post.get_post(SESSION, url)
+        if not post:
+            await ctx.send("Couldn't find a post matching that URL.")
+            return
+        await post.send(ctx.channel)
+
+    @post.command(name="afk")
+    async def afk_post(self, ctx, url: url_str):
+        """Get a specific r/afkarena subreddit post."""
+        post = await AFKArenaPost.get_post(SESSION, url)
+        if not post:
+            await ctx.send("Couldn't find a post matching that URL.")
+            return
+        await post.send(ctx.channel)
 
     @checks.is_exemplar()
     @commands.group(invoke_without_command=True)

@@ -42,6 +42,10 @@ class AFKArenaPost(Post, db.Table):
         embed.set_footer(text=f"{self.type} by {self.author} on r/{self.subreddit}", icon_url=self.subreddit_icon)
         return embed
 
+    @property
+    def is_map_guide(self):
+        return self.author == "datguywind" and self.type == "Guide"
+
     async def send(self, channel: discord.TextChannel, *, mark_posted: bool = False):
         await channel.send(embed=self.embed())
         if mark_posted:
