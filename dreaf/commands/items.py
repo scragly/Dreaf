@@ -75,3 +75,7 @@ class ItemCommands(commands.Cog, name="Item Info"):
             await ctx.send("Argument not found.")
         else:
             await ctx.send(f"Error: {error}")
+
+
+def setup(bot):
+    bot.add_cog(ItemCommands(bot))

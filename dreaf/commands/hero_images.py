@@ -10,7 +10,7 @@ import discord
 from PIL import Image
 from discord.ext import commands
 
-from dreaf.heroes.model import Ascension, Faction, Hero, HeroTier
+from dreaf.game.heroes import Ascension, Hero, HeroTier
 
 if t.TYPE_CHECKING:
     from dreaf.bot import DreafBot
@@ -43,26 +43,8 @@ class HeroImg(commands.Cog, name="Hero Image"):
         self.bot.all_commands['heroes'] = self.hero_comp
         self.pull_counter = Counter()
 
-    def hero_img(self, hero: Hero):
-        return Image.open(self._frames / "heroes" / hero.hero_frame_img)
-
-    def frame_img(self, faction: Faction, ascension: Ascension = None):
-        faction_icon = Image.open(self._frames.joinpath(faction.frame_icon_img))
-        ascension_frame = Image.open(self._frames.joinpath(ascension.frame_img))
-        img = Image.alpha_composite(ascension_frame, faction_icon)
-        if ascension.is_plus:
-            frame_corners = Image.open(self._frames.joinpath(ascension.corner_img))
-            img = Image.alpha_composite(img, frame_corners)
-        return img
-
-    def hero_frame(self, hero: Hero, ascension: Ascension = None):
-        img = self.hero_img(hero)
-        frame = self.frame_img(hero.faction, ascension)
-        img = Image.alpha_composite(img, frame)
-        return img
-
     @staticmethod
-    def img_to_file(img_data, *, name="image"):
+    def img_to_file(img_data, *, name="image") -> discord.File:
         data = io.BytesIO()
         img_data.save(data, format="PNG")
         data.seek(0)
@@ -71,19 +53,7 @@ class HeroImg(commands.Cog, name="Hero Image"):
 
     @commands.group(invoke_without_command=True)
     async def hero(self, ctx: commands.Context, hero: Hero, ascension: Ascension = None):
-        img = self.hero_frame(hero, ascension or hero.base_ascension)
-        await ctx.send(file=self.img_to_file(img, name="hero.png"))
-
-    @hero.command(name="test")
-    async def test(self, ctx: commands.Context, hero: Hero):
-        img = Image.open(self._heroes / f"{hero.name.casefold()}.png")
-        mask = Image.open(self._mask)
-        img.putalpha(mask)
-        await ctx.send(file=self.img_to_file(img, name="hero"))
-
-    @test.error
-    async def test_error(self, ctx, error):
-        await ctx.send(f"{error}")
+        await ctx.send(file=self.img_to_file(hero.img_tile(ascension), name="hero.png"))
 
     @hero.command(name="composition", aliases=["comp", "team"])
     async def hero_comp(self, ctx: commands.Context, *heroes: Hero):
@@ -94,7 +64,7 @@ class HeroImg(commands.Cog, name="Hero Image"):
             await ctx.send("Teams can only have a maximum of 5 heroes.")
             return
 
-        images = [self.hero_frame(h, h.base_ascension) for h in heroes if h is not None]
+        images = [hero.img_tile() for hero in heroes if hero]
         widths, heights = zip(*(i.size for i in images))
         total_width = sum(widths) + ((len(images) - 1) * 10)
         max_height = max(heights)
@@ -103,11 +73,7 @@ class HeroImg(commands.Cog, name="Hero Image"):
         for im in images:
             img.paste(im, (x_offset, 0))
             x_offset += im.size[0] + 10
-        data = io.BytesIO()
-        img.save(data, format="PNG")
-        data.seek(0)
-        file = discord.File(data, "hero.png")
-        await ctx.send(file=file)
+        await ctx.send(file=self.img_to_file(img, name="comp"))
 
     @hero.command(name="info")
     async def hero_info(self, ctx: commands.Context, hero: Hero):
@@ -119,11 +85,10 @@ class HeroImg(commands.Cog, name="Hero Image"):
             info.append(f"Secondary Role: {hero.secondary_role.name}")
 
         embed = discord.Embed(description="\n".join(info), colour=discord.Colour.blue())
-        hero_img = discord.File(self._heroes / f"{hero.name.casefold()}.png", "hero.png")
-        faction_img = discord.File(self._factions / f"{hero.faction.name.casefold()}.png", "faction.png")
-        embed.set_thumbnail(url="attachment://hero.png")
-        embed.set_author(name=hero.name, icon_url="attachment://faction.png")
-
+        hero_img = self.img_to_file(hero.img_portrait(), name=hero.name)
+        faction_img = self.img_to_file(hero.faction.img_icon(), name=hero.faction.name)
+        embed.set_thumbnail(url=f"attachment://{hero_img.filename}")
+        embed.set_author(name=hero.name, icon_url=f"attachment://{faction_img.filename}")
         await ctx.send(embed=embed, files=[hero_img, faction_img])
 
     def pull_hero(self, user_id: int) -> Hero:
@@ -161,7 +126,7 @@ class HeroImg(commands.Cog, name="Hero Image"):
         for _ in range(number):
             heroes.append(self.pull_hero(ctx.author.id))
 
-        images = [self.hero_frame(h, h.base_ascension) for h in heroes]
+        images = [hero.img_tile() for hero in heroes]
         widths, heights = zip(*(i.size for i in images))
         if len(images) > 5:
             total_height = (max(heights) * 2) + 10
@@ -180,8 +145,10 @@ class HeroImg(commands.Cog, name="Hero Image"):
                 y_offset = 0
             img.paste(im, (x_offset, y_offset))
             x_offset += im.size[0] + 10
-        data = io.BytesIO()
-        img.save(data, format="PNG")
-        data.seek(0)
-        file = discord.File(data, "pull.png")
+
+        file = self.img_to_file(img)
         await ctx.send(file=file)
+
+
+def setup(bot):
+    bot.add_cog(HeroImg(bot))
