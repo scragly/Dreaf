@@ -5,12 +5,16 @@ verify_ssl = true
 
 [dev-packages]
 better-exceptions = "*"
+pipenv-to-requirements = "*"
+pillow-simd = "*"
 
 [packages]
 "discord.py" = "~=1.6.0"
 pendulum = "~=2.1.2"
 "discord.ext.context" = "*"
 everstone = "*"
+rapidfuzz = "*"
+afkarena = "*"
 
 [requires]
 python_version = "3.9"

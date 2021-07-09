@@ -1,11 +1,21 @@
-version: "3.7"
+version: "3"
 
+# define all containers
 services:
-  postgres:
-    image: postgres:13-alpine
-    environment:
-      - POSTGRES_DB
-      - POSTGRES_PASSWORD
-      - POSTGRES_USER
-    ports:
-     - 5432:5432
+  # my bot's container block
+  dreaf:
+    # not using an online image, but building from my own Dockerfile locally
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # these are host -> internal persistent volume mappings, so redeploys don't wipe important data
+    volumes:
+      - ./db:/bot/db
+      - ./logs:/bot/logs
+      - .:/bot:ro
+    # psudo tty to emulate normal console usage.
+    # this is laziness because my bot is still in development and may have print statements instead of logging
+    tty: true
+    # tell it a file to get environmental variables from (optional)
+    env_file:
+      - .env

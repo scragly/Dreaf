@@ -7,10 +7,17 @@ import logging
 
 from dreaf.context import ctx
 
+try:
+    import better_exceptions
+except ImportError:
+    better_exceptions = None
+
+if better_exceptions:
+    better_exceptions.hook()
+
 __all__ = ('ctx',)
 
 pendulum.set_local_timezone()
-
 debug_flag = True
 
 logging.getLogger().setLevel(logging.DEBUG)

@@ -45,14 +45,14 @@ class ItemCommands(commands.Cog, name="Item Info"):
             await ctx.send("No items found.")
             return
 
-        output = [f"{self.bot.get_emoji(item.emoji_id)} {item.name.title()}" for item in items]
+        output = [f"{self.bot.get_emoji(item.emoji_id) if item.emoji_id else ' — '} {item.name.title()}" for item in items]
         await ctx.send("\n".join(output))
 
     @checks.is_exemplar()
     @item.command(name="add", aliases=["edit"])
     async def add_item(self, ctx, name: str, emoji: discord.Emoji = None, *, description: str = None):
         """Add or edit an item in the database."""
-        item = Item(name, description, emoji.id)
+        item = Item(name, description, emoji.id if emoji else None)
         dirty = item.is_dirty()
         if dirty is None:
             item.save()

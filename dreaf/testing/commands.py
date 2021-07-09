@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import textwrap
 import traceback
 import typing as t
@@ -13,6 +14,41 @@ from dreaf import checks, ctx as dctx
 
 if t.TYPE_CHECKING:
     from dreaf.bot import DreafBot
+
+log = logging.getLogger(__name__)
+
+packs = {
+    "usd": 99.99,
+    "cad": 139.99,
+    "aud": 159.99,
+    "sar": 449.99,
+    "gbp": 109.99,
+}
+
+
+def currency_pack(currency: str):
+    currency = currency.casefold() if currency and currency.casefold() in packs else "usd"
+    return currency, packs[currency]
+
+
+ftp_vip = {
+    0: 0,
+    20: 100,
+    40: 300,
+    70: 1000,
+    80: 2000,
+    100: 4000,
+    120: 7000,
+    140: 10000,
+    150: 14000,
+    170: 20000,
+    200: 30000,
+}
+
+
+def free_vip(level: int):
+    key = max(i for i in ftp_vip if i < level)
+    return ftp_vip[key]
 
 
 class TestCommands(commands.Cog, name="Gift Codes"):
@@ -81,3 +117,14 @@ class TestCommands(commands.Cog, name="Gift Codes"):
             else:
                 self._last_result = ret
                 await ctx.send(f"```\n{value}{ret}\n```")
+
+    @commands.command()
+    async def vip(self, ctx, player_level: int, vip_points: int, *, currency: str = None):
+        """
+        Estimates how much you've spent ingame on your account.
+
+        Supports currencies: USD (default), CAD, AUD, GBP, SAR.
+        """
+        currency, price = currency_pack(currency)
+        value = round((vip_points-free_vip(player_level))/(7600/price))
+        await ctx.send(f"Estimated spent: ${value} {currency.upper()}")

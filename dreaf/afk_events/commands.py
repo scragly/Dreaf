@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands
 
 from dreaf import checks, constants
-from dreaf.afk_events.gform_prefill import AFKPlayerSurveyForm
+from dreaf.google_forms.gform_prefill import AFKPlayerSurveyForm
 
 if t.TYPE_CHECKING:
     from dreaf.bot import DreafBot

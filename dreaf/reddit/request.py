@@ -32,7 +32,10 @@ class Post:
     def __init__(self, **data):
         self._raw_data = data["data"]
         self.created = pendulum.from_timestamp(data['data']['created_utc'])
-        self.title = unescape(data['data']['title'])
+        title = unescape(data['data']['title'])
+        if len(title) > 250:
+            title = f"{title[:250]}..."
+        self.title = title
         self.url = data['data'].get('url')
         self.author = data['data']['author']
         self.subreddit = data['data']['subreddit']
@@ -51,7 +54,7 @@ class Post:
     @property
     def is_gallery(self) -> bool:
         """Returns True if the post links to a reddit image gallery."""
-        return self._raw_data.get("is_gallery", False)
+        return "is_gallery" in self._raw_data
 
     def gallery_images(self) -> t.List[str]:
         """Return a list of image URLs for a gallery post."""
@@ -61,7 +64,12 @@ class Post:
         image_urls = dict()
         for img_id, data in self._raw_data["media_metadata"].items():
             if data["status"] == "valid":
-                image_urls[img_id] = unescape(data["s"]["u"])
+                try:
+                    image_urls[img_id] = unescape(data["s"]["u"])
+                except KeyError:
+                    log.warning("Reddit post encountered bad keys.")
+                    log.info(str(self._raw_data))
+                    return []
         return [image_urls[i] for i in gallery_items if i in image_urls]
 
     def embed(self):
@@ -126,7 +134,7 @@ async def get_posts(
     sort: Sort = Sort.new,
     time: SortTime = None,
     limit: int = 25,
-    cls: Post = Post
+    cls=Post
 ):
     """Request posts from a subreddit."""
     params = {}

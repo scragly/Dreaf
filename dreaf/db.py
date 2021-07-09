@@ -2,7 +2,8 @@ import abc
 import logging
 import sqlite3
 
-conn = sqlite3.connect("db.sqlite")
+conn = sqlite3.connect("db/db.sqlite")
+conn.row_factory = sqlite3.Row
 
 _all_tables = []
 
