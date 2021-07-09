@@ -112,6 +112,10 @@ class DreafBot(context.ContextClient, commands.Bot):
 
         await log_channel.send(f"`{member} ({member.id})` **left** the server.")
 
+    @staticmethod
+    async def on_ready():
+        print("Bot has started.")
+
     def dispatch(self, event_name, *args, **kwargs):
         ctx.event_hook(event_name, *args, **kwargs)
         super().dispatch(event_name, *args, **kwargs)
