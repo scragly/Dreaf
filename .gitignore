@@ -108,5 +108,5 @@ logs
 db.sqlite
 sessions
 .idea
-images/
-data/
+images
+data
