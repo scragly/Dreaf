@@ -145,6 +145,7 @@ async def get_posts(
 
     url = f"https://reddit.com/r/{subreddit}/{sort.value}.json"
     async with session.get(url, params=params) as resp:
+        print(await resp.text())
         data = await resp.json()
 
     return [cls(**p) for p in data['data']['children']]

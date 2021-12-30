@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import io
+import logging
 import random
+import shutil
 import typing as t
 from collections import Counter
 from pathlib import Path
 
 import discord
+from discord.ext import commands
+from discord.ext.commands import MissingRequiredArgument, converter
 from PIL import Image
 from discord.ext import commands
 
-from dreaf.game.heroes import Ascension, Hero, HeroTier
+from dreaf import checks
+from dreaf.game.heroes import Ascension, Hero, HeroTier, Faction
 
 if t.TYPE_CHECKING:
     from dreaf.bot import DreafBot
+
+
+log = logging.getLogger(__name__)
 
 
 class UnknownFaction:
@@ -55,7 +63,7 @@ class HeroImg(commands.Cog, name="Hero Image"):
     async def hero(self, ctx: commands.Context, hero: Hero, ascension: Ascension = None):
         await ctx.send(file=self.img_to_file(hero.img_tile(ascension), name="hero.png"))
 
-    @hero.command(name="composition", aliases=["comp", "team"])
+    @hero.group(name="composition", aliases=["comp", "team"], invoke_without_command=True)
     async def hero_comp(self, ctx: commands.Context, *heroes: Hero):
         if not heroes:
             return
@@ -75,6 +83,30 @@ class HeroImg(commands.Cog, name="Hero Image"):
             x_offset += im.size[0] + 10
         await ctx.send(file=self.img_to_file(img, name="comp"))
 
+    @hero_comp.command(name="noasc")
+    async def hero_nonecomp(self, ctx: commands.Context, *heroes: Hero):
+        if not heroes:
+            return
+
+        if len(heroes) > 5:
+            await ctx.send("Teams can only have a maximum of 5 heroes.")
+            return
+
+        images = [hero.copy(Ascension.none()).img_tile() for hero in heroes if hero]
+        widths, heights = zip(*(i.size for i in images))
+        total_width = sum(widths) + ((len(images) - 1) * 10)
+        max_height = max(heights)
+        img = Image.new('RGBA', (total_width, max_height))
+        x_offset = 0
+        for im in images:
+            img.paste(im, (x_offset, 0))
+            x_offset += im.size[0] + 10
+        await ctx.send(file=self.img_to_file(img, name="comp"))
+
+    @hero_comp.error
+    async def comp_error(self, ctx, error):
+        raise error
+
     @hero.command(name="info")
     async def hero_info(self, ctx: commands.Context, hero: Hero):
         info = [f"Tier: {hero.tier.name}", f"Type: {hero.type.name}"]
@@ -93,26 +125,28 @@ class HeroImg(commands.Cog, name="Hero Image"):
 
     def pull_hero(self, user_id: int) -> Hero:
         self.pull_counter[user_id] += 1
-        if self.pull_counter[user_id] >= 30:
-            tier = HeroTier.get("ascended")
+        is_celepogean = random.choices([True, False], weights=[1, 500], k=1)[0]
+        if is_celepogean:
+            factions = Faction.celepogeans()
+            hero = random.choice([*Hero.get_faction_heroes(*factions)])
         else:
-            tier = random.choices(
-                [HeroTier.get("common"), HeroTier.get("legendary"), HeroTier.get("ascended")],
-                weights=[5169, 4370, 461],
-            )[0]
-
-        if tier.name == HeroTier.get("ascended").name:
-            self.pull_counter[user_id] = 0
-            is_celehypo = random.choices([True, False], weights=[20, 441])[0]
-            if is_celehypo:
-                heroes = Hero.get_by_tier(tier, cele=True, hypo=True, std=False)
+            if self.pull_counter[user_id] >= 30:
+                tier = HeroTier.get("Ascended")
             else:
-                heroes = Hero.get_by_tier(tier)
+                tier = random.choices(
+                    [
+                        HeroTier.get("common"),
+                        HeroTier.get("legendary"),
+                        HeroTier.get("ascended")
+                    ],
+                    weights=[5169, 4370, 461],
+                )[0]
+            hero = random.choice([*Hero.get_faction_heroes(*Faction.four_factions(), tier=tier)])
 
-        else:
-            heroes = Hero.get_by_tier(tier)
+        if hero.tier.name.casefold() == "ascended":
+            self.pull_counter[user_id] = 0
 
-        return random.choices(heroes)[0]
+        return hero
 
     @hero.command(name="pull")
     async def hero_pull(self, ctx: commands.Context, number: int = 10):
@@ -148,6 +182,15 @@ class HeroImg(commands.Cog, name="Hero Image"):
 
         file = self.img_to_file(img)
         await ctx.send(file=file)
+
+    @checks.is_owner()
+    @hero.command(name="purge")
+    async def hero_purge(self, ctx):
+        """Purges all pre-rendered frames of heroes."""
+        save_dir = Path(f"images/frames/rendered/")
+        shutil.rmtree(save_dir)
+        save_dir.mkdir(exist_ok=True)
+        await ctx.send("All pre-rendered hero frames have been removed.")
 
 
 def setup(bot):

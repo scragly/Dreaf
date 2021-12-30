@@ -25,7 +25,7 @@ class Ascension(db.Table):
     def img_frame(self) -> Image:
         img = Image.open(Path(f"images/frames/frame_{self.name.casefold().strip('+')}.png"))
         if self.is_plus:
-            corners = Image.open(Path(f"images/frames/heroes/corners_{self.name.casefold().strip('+')}.png"))
+            corners = Image.open(Path(f"images/frames/corners_{self.name.casefold().strip('+')}.png"))
             img = Image.alpha_composite(img, corners)
         return img
 
@@ -35,8 +35,6 @@ class Ascension(db.Table):
 
     @classmethod
     async def convert(cls, _ctx, arg: str):
-        if arg in ["none", "n", "unknown", "unk", "?"]:
-            return cls.none()
         return cls.get(arg)
 
     @classmethod
@@ -49,6 +47,8 @@ class Ascension(db.Table):
                 cls.cache[asc.name.casefold()] = asc
                 for alias in asc.aliases:
                     cls.cache[alias.casefold()] = asc
+            for n in ["none", "n", "unknown", "unk", "?"]:
+                cls.cache[n] = cls.none()
         return cls.cache.get(name.casefold())
 
     @staticmethod
@@ -137,4 +137,3 @@ class Ascension(db.Table):
     @classmethod
     def none(cls):
         return cls("none", 0, [])
-

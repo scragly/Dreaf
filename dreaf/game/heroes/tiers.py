@@ -20,6 +20,17 @@ class HeroTier(db.Table):
         self.min_ascension = min_ascension
         self.max_ascension = max_ascension
 
+    def __str__(self):
+        return self.name.title()
+
+    def __repr__(self):
+        return f"<HeroTier '{self}'>"
+
+    def __eq__(self, other):
+        if other.__class__ != self.__class__:
+            return False
+        return self.name == other.name
+
     @classmethod
     async def convert(cls, _ctx, arg: str):
         return cls.get(arg)

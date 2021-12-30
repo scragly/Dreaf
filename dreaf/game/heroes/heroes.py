@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 import csv
 import logging
 import sqlite3
+import typing as t
 from pathlib import Path
 
 from PIL import Image
+from discord.ext import commands
 from rapidfuzz import process
 
 from dreaf import db
@@ -22,6 +26,7 @@ data_path = Path("data/")
 class Hero(db.Table):
     default_data = data_path / "heroes.csv"
     cache = dict()
+    heroes = dict()
 
     def __init__(
         self,
@@ -31,7 +36,8 @@ class Hero(db.Table):
         type: HeroType,
         hero_class: HeroClass,
         primary_role: HeroRole,
-        secondary_role: HeroRole
+        secondary_role: HeroRole,
+        ascension: t.Optional[Ascension] = None,
     ):
         self.name = name
         self.faction = faction
@@ -40,29 +46,66 @@ class Hero(db.Table):
         self.hero_class = hero_class
         self.primary_role = primary_role
         self.secondary_role = secondary_role
-        self.ascension = self.base_ascension
+        self.ascension = ascension or self.base_ascension
 
     def __str__(self):
-        return self.name
+        return f"{self.name}:{self.ascension.name}"
 
     def __repr__(self):
-        return f"<Hero '{self.name}'>"
+        if self.ascension == Ascension.none():
+            return f"<Hero '{self.name.title()}'>"
+        else:
+            return f"<Hero '{self.ascension.name.title()} {self.name.title()}'>"
 
-    def img_masked_portrait(self):
+    def __eq__(self, other):
+        if other.__class__ != self.__class__:
+            return False
+        return f"{self}" == f"{other}"
+
+    def __hash__(self):
+        return hash(f"{self}")
+
+    def copy(self, ascension: t.Optional[Ascension] = None):
+        return Hero(
+            self.name,
+            self.faction,
+            self.tier,
+            self.type,
+            self.hero_class,
+            self.primary_role,
+            self.secondary_role,
+            ascension or self.ascension
+        )
+
+    def img_masked_portrait(self, size: int = None):
+        if size:
+            img = Image.open(Path(f"images/frames/heroes/{self.name.casefold()}.png"))
+            img.thumbnail((size, size))
+            return img
         return Image.open(Path(f"images/frames/heroes/{self.name.casefold()}.png"))
 
     def img_portrait(self):
         return Image.open(Path(f"images/heroes/{self.name.casefold()}.png"))
 
     def img_tile(self, ascension: Ascension = None):
+        save_dir = Path(f"images/frames/rendered/")
+        if not save_dir.exists():
+            save_dir.mkdir(exist_ok=True)
+        try:
+            log.debug(f"Pre-rendered frame served: {self}")
+            return Image.open(save_dir / f"{self}.png".casefold())
+        except FileNotFoundError:
+            pass
         ascension = ascension or self.ascension
-        # faction = self.faction.img_frame_icon()
-        faction = self.faction.img_icon()
-        faction.thumbnail((41, 41))
-        img = Image.alpha_composite(self.img_masked_portrait(), ascension.img_frame())
-        img.paste(faction, (6, 6), faction.convert("RGBA"))
-        # return Image.alpha_composite(img, faction)
-        return img
+        base = Image.new("RGBA", (150, 150), (255, 0, 0, 0))
+        faction = self.faction.img_icon(41)
+        portrait = self.img_masked_portrait(134)
+        base.paste(portrait, (8, 8))
+        base = Image.alpha_composite(base, ascension.img_frame())
+        base.alpha_composite(faction, (6, 6))
+        base.save(Path(save_dir / f"{self}.png".casefold()))
+        log.info(f"Saved newly rendered frame: {self}")
+        return base
 
     @property
     def base_ascension(self):
@@ -70,50 +113,83 @@ class Hero(db.Table):
 
     @classmethod
     async def convert(cls, _ctx, arg: str):
-        asc = Ascension.get(arg)
-        if asc:
+        if ":" in arg:
+            hero_arg, asc_arg = arg.split(":", maxsplit=1)
+        elif "," in arg:
+            hero_arg, asc_arg = arg.split(",", maxsplit=1)
+        elif "." in arg:
+            hero_arg, asc_arg = arg.split(".", maxsplit=1)
+        else:
+            asc = Ascension.get(arg)
+            if asc:
+                return cls.unknown(ascension=asc)
+
+            hero_arg, asc_arg = arg, None
+
+        if asc_arg:
+            asc = Ascension.get(asc_arg)
+            if not asc:
+                raise commands.BadArgument
+        else:
+            asc = None
+
+        faction = Faction.get(hero_arg)
+        if faction:
+            return cls.unknown(faction=faction, ascension=asc)
+
+        if hero_arg in {"none", "n", "unknown", "unk", "?"}:
             return cls.unknown(ascension=asc)
 
-        faction = Faction.get(arg)
-        if faction:
-            return cls.unknown(faction=faction)
+        hero = cls.match(hero_arg)
+        if not hero:
+            raise commands.BadArgument
 
-        if arg in {"none", "n", "unknown", "unk", "?"}:
-            return cls.unknown()
-
-        hero = cls.match(arg)
-        if hero:
-            return hero
-
-        return None
+        if asc and hero.ascension.name != asc.name:
+            return hero.copy(ascension=asc)
+        return hero
 
     @classmethod
-    def from_data(cls, data):
+    def from_data(cls, data, ascension: t.Optional[Ascension] = None):
         data = dict(**data)
-        data['faction'] = Faction.get(data['faction'])
-        data['tier'] = HeroTier.get(data['tier'])
-        data['type'] = HeroType.get(data['type'])
-        data['hero_class'] = HeroClass.get(data['class']) if data['class'] else None
-        del data['class']
-        data['primary_role'] = HeroRole.get(data['primary_role'])
-        if data['secondary_role']:
-            data['secondary_role'] = HeroRole.get(data['secondary_role'])
-        return cls(**data)
+        name = data['name']
+        faction: Faction = Faction.get(data['faction'])
+        if not faction:
+            raise ValueError(f"Faction not found for hero: {data}")
+        tier: HeroTier = HeroTier.get(data['tier'])
+        hero_type = HeroType.get(data['type'])
+        hero_class = HeroClass.get(data['class']) if data['class'] else None
+        primary = HeroRole.get(data['primary_role'])
+        secondary = HeroRole.get(data['secondary_role']) if data['secondary_role'] else None
+
+        hero: Hero = cls(name, faction, tier, hero_type, hero_class, primary, secondary, ascension)
+        if hero.base_ascension == hero.ascension:
+            base_hero = hero
+        else:
+            base_hero = hero.copy(ascension=hero.base_ascension)
+
+        faction.heroes.add(base_hero)
+        cls.cache[hero.name.casefold()] = base_hero
+        cls.heroes[f"{hero}".casefold()] = hero
+        return hero
 
     @classmethod
-    def get(cls, name: str = None):
-        if not cls.cache:
-            for data in cls._select_all():
-                cls.cache[data['name'].casefold()] = cls.from_data(data)
-
-        if name:
-            return cls.cache.get(name.casefold())
+    def populate_cache(cls):
+        for hero_data in cls._select_all():
+            cls.from_data(hero_data)
+        log.info("Hero cache has been populated.")
 
     @classmethod
-    def get_all(cls):
+    def get(cls, name: str, ascension: t.Optional[Ascension] = None) -> t.Optional[Hero]:
         if not cls.cache:
-            cls.get()
-        return [h for h in cls.cache.values()]
+            cls.populate_cache()
+        hero = cls.heroes.get(f"{name}:{ascension.name}".casefold())
+        if not hero:
+            base_hero = cls.cache.get(name.casefold())
+            if not base_hero:
+                return None
+            hero = base_hero.copy(ascension=ascension or base_hero.base_ascension)
+
+        return hero
 
     @classmethod
     def get_by_tier(cls, tier: HeroTier, *, cele=False, hypo=False, dim=False, std=True):
@@ -143,6 +219,20 @@ class Hero(db.Table):
         data = cursor.fetchone()
         cursor.close()
         return data
+
+    @classmethod
+    def get_faction_heroes(cls, *factions: Faction, tier: HeroTier = None):
+        if not cls.cache:
+            cls.populate_cache()
+        heroes = set()
+        for faction in factions:
+            for hero in faction.heroes:
+                if not tier:
+                    heroes.add(hero)
+                elif hero.tier == tier:
+                    heroes.add(hero)
+
+        return heroes
 
     @staticmethod
     def _select_tier(tier: str, cele=False, hypo=False, dim=False, std=True):
@@ -261,7 +351,7 @@ class Hero(db.Table):
     @classmethod
     def match(cls, query):
         if not cls.cache:
-            cls.get()
-        result = process.extractOne(query, cls.cache.keys(), score_cutoff=90)
+            cls.populate_cache()
+        result = process.extractOne(query.casefold(), cls.cache.keys(), score_cutoff=90)
         if result:
             return cls.cache[result[0]]

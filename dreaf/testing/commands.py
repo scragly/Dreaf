@@ -18,17 +18,24 @@ if t.TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 packs = {
-    "usd": 99.99,
-    "cad": 139.99,
-    "aud": 159.99,
-    "sar": 449.99,
-    "gbp": 109.99,
+    "usd": (99.99, "$", "USD"),
+    "cad": (139.99, "$", "CAD"),
+    "aud": (159.99, "$", "AUD"),
+    "sar": (449.99, "", "riyals"),
+    "gbp": (109.99, "£"),
+    "mxn": (2500, "$", "MXN"),
+    "pln": (479.99, "", "złoty"),
+    "eur": (99.99, "€", "EUR"),
+    "eur-android": (109.99, "€", "EUR"),
 }
 
 
-def currency_pack(currency: str):
-    currency = currency.casefold() if currency and currency.casefold() in packs else "usd"
-    return currency, packs[currency]
+def currency_pack(currency: str) -> t.Optional[t.Tuple[float, t.Optional[str], str]]:
+    currency = currency.casefold()
+    if currency not in packs:
+        return None
+    value, symbol, currency = packs[currency]
+    return value, symbol, currency
 
 
 ftp_vip = {
@@ -119,12 +126,25 @@ class TestCommands(commands.Cog, name="Gift Codes"):
                 await ctx.send(f"```\n{value}{ret}\n```")
 
     @commands.command()
-    async def vip(self, ctx, player_level: int, vip_points: int, *, currency: str = None):
+    async def vip(self, ctx, player_level: int, vip_points: int, *, currency: str = "usd"):
         """
         Estimates how much you've spent ingame on your account.
 
-        Supports currencies: USD (default), CAD, AUD, GBP, SAR.
+        Supports currencies:
+         - USD (default)
+         - CAD
+         - AUD
+         - GBP
+         - SAR
+         - EUR
+         - EUR-ANDROID
+         - MXN
+         - PLN
         """
-        currency, price = currency_pack(currency)
+        data = currency_pack(currency)
+        if not data:
+            return ctx.send("That currency is not found.")
+
+        price, symbol, currency = currency_pack(currency)
         value = round((vip_points-free_vip(player_level))/(7600/price))
-        await ctx.send(f"Estimated spent: ${value} {currency.upper()}")
+        await ctx.send(f"Estimated spent: {symbol}{value} {currency}")

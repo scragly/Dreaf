@@ -1,9 +1,11 @@
 import typing as t
 
+import discord
 from discord.ext import commands
 
-if t.TYPE_CHECKING:
-    from .bot import DreafBot
+
+def _ensure_member(ctx) -> t.Optional[discord.Member]:
+    return ctx.author if ctx.guild else ctx.bot.guild.get_member(ctx.author.id)
 
 
 def is_owner():
@@ -14,17 +16,20 @@ def is_owner():
 
 def is_master():
     async def predicate(ctx):
-        return ctx.bot.is_master(ctx.author)
+        author = _ensure_member(ctx)
+        return ctx.bot.is_master(author) if author else False
     return commands.check(predicate)
 
 
 def is_deputy():
     async def predicate(ctx):
-        return ctx.bot.is_deputy(ctx.author)
+        author = _ensure_member(ctx)
+        return ctx.bot.is_deputy(author) if author else False
     return commands.check(predicate)
 
 
 def is_exemplar():
     async def predicate(ctx):
-        return ctx.bot.is_exemplar(ctx.author)
+        author = _ensure_member(ctx)
+        return ctx.bot.is_exemplar(author) if author else False
     return commands.check(predicate)

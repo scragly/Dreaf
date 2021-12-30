@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import csv
 import logging
 import sqlite3
@@ -15,18 +17,38 @@ data_path = Path("data/")
 
 class Faction(db.Table):
     default_data = data_path / "factions.csv"
-    cache = dict()
+    factions = dict()
 
     def __init__(self, name: str, emblem_cap: int, aliases: t.List[str]):
         self.name = name
         self.emblem_cap = emblem_cap
         self.aliases = aliases
+        self.heroes = set()
+
+    def __str__(self):
+        return self.name.title()
+
+    def __repr__(self):
+        return f"<Faction '{self}'>"
 
     def img_frame_icon(self):
         return Image.open(Path(f"images/frames/faction_{self.name.casefold()}.png"))
 
-    def img_icon(self):
+    def img_icon(self, size: int = None):
+        if size:
+            icon = Image.open(Path(f"images/factions/{self.name.casefold()}.png"))
+            icon.thumbnail((size, size))
+            return icon
         return Image.open(Path(f"images/factions/{self.name.casefold()}.png"))
+
+    @classmethod
+    def celepogeans(cls) -> t.Tuple[Faction, Faction]:
+        print(Faction.get("Hypogean"))
+        return Faction.get("Celestial"), Faction.get("Hypogean")
+
+    @classmethod
+    def four_factions(cls) -> t.Tuple[Faction, Faction, Faction, Faction]:
+        return Faction.get("Wilder"), Faction.get("Mauler"), Faction.get("Lightbearer"), Faction.get("Graveborn")
 
     @classmethod
     async def convert(cls, _ctx, arg: str):
@@ -35,16 +57,17 @@ class Faction(db.Table):
         return cls.get(arg)
 
     @classmethod
-    def get(cls, name: str):
-        if not cls.cache:
+    def get(cls, name: str) -> t.Optional[Faction]:
+        if not cls.factions:
+            print("Faction cache being built.")
             for data in cls._select_all():
                 data = dict(data)
                 data['aliases'] = data['aliases'].split(',')
                 f = cls(**data)
-                cls.cache[f.name.casefold()] = f
+                cls.factions[f.name.casefold()] = f
                 for alias in f.aliases:
-                    cls.cache[alias.casefold()] = f
-        return cls.cache.get(name.casefold())
+                    cls.factions[alias.casefold()] = f
+        return cls.factions.get(name.casefold())
 
     @staticmethod
     def _select(name):

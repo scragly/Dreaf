@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import typing as t
 
-import aiohttp
 import discord
 
 from .request import Post, Sort, SortTime, get_posts
@@ -11,9 +10,6 @@ from dreaf import db
 
 
 log = logging.getLogger(__name__)
-
-
-SESSION = aiohttp.ClientSession(headers={"Content-Type": "application/json", "charset": "UTF-8"})
 
 POST_TYPES = {
     "": {
@@ -66,6 +62,7 @@ class AFKArenaPost(Post, db.Table):
 
     @classmethod
     async def fetch(cls, *, sort: Sort = Sort.new, time: SortTime = None, limit: int = 25, filter_types=True) -> t.List[AFKArenaPost]:
+        posts: t.List[AFKArenaPost] = await get_posts(SESSION, "afkarena", sort=sort, time=time, limit=limit, cls=cls)
         posts: t.List[AFKArenaPost] = await get_posts(SESSION, "afkarena", sort=sort, time=time, limit=limit, cls=cls)
         if filter_types:
             return [p for p in posts if p.type in ("Guide", "Info")]

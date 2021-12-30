@@ -1,6 +1,7 @@
 import logging
 import typing as t
 
+import aiohttp
 import discord
 from discord.ext import commands
 from discord.ext import context
@@ -19,6 +20,7 @@ class DreafBot(context.ContextClient, commands.Bot):
         self._global_reaction_triggers: t.Dict[str, t.Callable] = {
             constants.EMOJI_DELETE: self._delete_trigger,
         }
+        self.http_session = aiohttp.ClientSession()
 
     def run(self):
         super().run(constants.TOKEN)

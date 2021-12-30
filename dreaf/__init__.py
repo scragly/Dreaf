@@ -1,3 +1,4 @@
+import os
 import pathlib
 import sys
 from logging import handlers
@@ -18,11 +19,11 @@ if better_exceptions:
 __all__ = ('ctx',)
 
 pendulum.set_local_timezone()
-debug_flag = True
+debug_flag = bool(os.environ.get("DEBUG", False))
 
 logging.getLogger().setLevel(logging.DEBUG)
 discord_log = logging.getLogger("discord")
-discord_log.setLevel(logging.INFO)
+discord_log.setLevel(logging.DEBUG if debug_flag else logging.INFO)
 dreaf_log = logging.getLogger("dreaf")
 
 # setup log directory
